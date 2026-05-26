@@ -1,113 +1,333 @@
-export default {
-  async fetch(request, env) {
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-      });
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tina Agent — Content Studio</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg-secondary: #f7f6f3; --bg-tertiary: #f1efe8;
+    --text: #1a1a1a; --text-secondary: #666660; --text-tertiary: #999993;
+    --border: rgba(0,0,0,0.12); --border-hover: rgba(0,0,0,0.25);
+    --purple-50: #EEEDFE; --purple-600: #534AB7; --purple-800: #3C3489;
+    --radius-md: 8px; --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1e; --bg-secondary: #2c2c2e; --bg-tertiary: #3a3a3c;
+      --text: #f2f2f7; --text-secondary: #aeaeb2; --text-tertiary: #636366;
+      --border: rgba(255,255,255,0.12); --border-hover: rgba(255,255,255,0.25);
+      --purple-50: #2a2660; --purple-800: #c5c0f8;
     }
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg-tertiary); color: var(--text); min-height: 100vh; padding: 1.5rem 1rem; }
+  .container { max-width: 680px; margin: 0 auto; }
+  .header { display: flex; align-items: center; gap: 14px; margin-bottom: 1.5rem; }
+  .logo { width: 48px; height: 48px; border-radius: 50%; background: var(--purple-50); display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 600; color: var(--purple-800); flex-shrink: 0; }
+  .header h1 { font-size: 20px; font-weight: 600; color: var(--text); }
+  .header p { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1rem; }
+  .section-label { font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .7rem; }
+  .url-row { display: flex; gap: 8px; }
+  .url-row input { flex: 1; }
+  .fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .full { grid-column: 1 / -1; }
+  label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+  input, select, textarea { width: 100%; padding: 8px 12px; border: 0.5px solid var(--border); border-radius: var(--radius-md); background: var(--bg-secondary); color: var(--text); font-size: 14px; font-family: inherit; outline: none; transition: border-color .15s; }
+  input:focus, select:focus, textarea:focus { border-color: var(--purple-600); }
+  textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+  .tone-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tone-opt { border: 0.5px solid var(--border); border-radius: var(--radius-md); padding: 12px 8px; cursor: pointer; text-align: center; transition: all .15s; background: var(--bg-secondary); }
+  .tone-opt:hover { border-color: var(--border-hover); }
+  .tone-opt.active { border: 1.5px solid var(--purple-600); background: var(--purple-50); }
+  .tone-opt .tone-icon { font-size: 22px; margin-bottom: 5px; }
+  .tone-opt .tone-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .tone-opt .tone-ru { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .tone-opt.active .tone-name { color: var(--purple-800); }
+  .sig-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .generate-btn { width: 100%; padding: 13px; font-size: 15px; font-weight: 600; background: var(--purple-600); color: #fff; border: none; border-radius: var(--radius-md); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: opacity .15s; margin-top: .25rem; }
+  .generate-btn:hover { opacity: .88; }
+  .generate-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-secondary { padding: 7px 14px; font-size: 13px; border: 0.5px solid var(--border); border-radius: var(--radius-md); background: var(--bg-secondary); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-family: inherit; transition: border-color .15s; }
+  .btn-secondary:hover { border-color: var(--border-hover); }
+  .status-bar { font-size: 13px; color: var(--text-secondary); text-align: center; padding: .75rem; display: none; }
+  .status-bar.active { display: block; }
+  .parsing-indicator { font-size: 13px; color: var(--purple-600); padding: 6px 0; display: none; align-items: center; gap: 6px; }
+  .parsing-indicator.active { display: flex; }
+  .spin { animation: spin 1s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .output-tabs { display: flex; gap: 4px; margin-bottom: 1rem; }
+  .tab { padding: 7px 16px; border-radius: var(--radius-md); border: 0.5px solid var(--border); font-size: 13px; cursor: pointer; background: var(--bg-secondary); color: var(--text-secondary); font-family: inherit; }
+  .tab.active { background: var(--purple-50); border-color: var(--purple-600); color: var(--purple-800); font-weight: 600; }
+  .post-block { margin-bottom: 1rem; }
+  .post-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; margin-bottom: .4rem; }
+  .post-content { background: var(--bg-secondary); border: 0.5px solid var(--border); border-radius: var(--radius-md); padding: 1rem; font-size: 14px; line-height: 1.75; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+  .copy-btn { margin-left: auto; font-size: 11px; padding: 3px 10px; cursor: pointer; background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-md); color: var(--text-secondary); font-family: inherit; transition: all .15s; }
+  .copy-btn:hover { border-color: var(--border-hover); }
+  .copy-btn.copied { color: #1D9E75; border-color: #1D9E75; }
+  .history-item { padding: .7rem .9rem; border: 0.5px solid var(--border); border-radius: var(--radius-md); margin-bottom: 6px; cursor: pointer; display: flex; align-items: center; gap: 10px; background: var(--bg-secondary); transition: border-color .15s; }
+  .history-item:hover { border-color: var(--border-hover); }
+  .hi-title { font-size: 13px; font-weight: 500; color: var(--text); flex: 1; }
+  .hi-meta { font-size: 11px; color: var(--text-secondary); }
+  .hi-del { font-size: 11px; color: var(--text-tertiary); cursor: pointer; padding: 2px 6px; }
+  .hi-del:hover { color: #E24B4A; }
+  .empty-state { text-align: center; color: var(--text-secondary); font-size: 13px; padding: 2.5rem; }
+  .divider { border: none; border-top: 0.5px solid var(--border); margin: 1rem 0; }
+  .view { display: none; }
+  .view.active { display: block; }
+  .top-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
+  .top-bar-title { font-size: 15px; font-weight: 500; flex: 1; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .alert { background: #FAECE7; border: 0.5px solid #D85A30; border-radius: var(--radius-md); padding: .75rem 1rem; font-size: 13px; color: #712B13; margin-top: .5rem; display: none; }
+  .alert.active { display: block; }
+  footer { text-align: center; font-size: 12px; color: var(--text-tertiary); margin-top: 2rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="logo">ВС</div>
+    <div>
+      <h1>Content Studio</h1>
+      <p>Валентина Стрех · @tina_agent.by</p>
+    </div>
+  </div>
 
-    if (request.method !== 'POST') {
-      return new Response('Method not allowed', { status: 405 });
-    }
+  <div id="view-main" class="view active">
+    <div class="card">
+      <div class="section-label">Ссылка на объект (realt.by)</div>
+      <div class="url-row">
+        <input type="text" id="url-input" placeholder="https://realt.by/sale-flats/object/..." />
+        <button class="btn-secondary" onclick="parseUrl()">⬇ Загрузить</button>
+      </div>
+      <div class="parsing-indicator" id="parsing-ind"><span class="spin">⟳</span> Загружаю данные объекта...</div>
+      <div class="alert" id="parse-error"></div>
+    </div>
 
+    <div class="card">
+      <div class="section-label">Данные объекта</div>
+      <div class="fields-grid">
+        <div><label>Тип объекта</label>
+          <select id="f-type">
+            <option>3-комнатная квартира</option><option>1-комнатная квартира</option>
+            <option>2-комнатная квартира</option><option>4-комнатная квартира</option>
+            <option>Студия</option><option>Дом / коттедж</option><option>Таунхаус</option>
+          </select>
+        </div>
+        <div><label>Цена</label><input type="text" id="f-price" placeholder="205 000 $" /></div>
+        <div><label>Площадь (м²)</label><input type="text" id="f-area" placeholder="122" /></div>
+        <div><label>Этаж / этажей</label><input type="text" id="f-floor" placeholder="5 / 12" /></div>
+        <div class="full"><label>Адрес / район</label><input type="text" id="f-address" placeholder="ул. Притыцкого 83, Кунцевщина, Минск" /></div>
+        <div class="full"><label>Ключевые особенности (через запятую)</label><textarea id="f-features" placeholder="кухня 17 м², две лоджии, два санузла, 3 мин до метро, консьерж, подземный паркинг"></textarea></div>
+        <div class="full"><label>Описание из объявления (опционально)</label><textarea id="f-desc" style="min-height:60px" placeholder="Вставьте текст описания из объявления..."></textarea></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Тон публикации</div>
+      <div class="tone-grid">
+        <div class="tone-opt" onclick="selectTone('luxury')" id="tone-luxury"><div class="tone-icon">💎</div><div class="tone-name">Luxury</div><div class="tone-ru">Элитная</div></div>
+        <div class="tone-opt active" onclick="selectTone('family')" id="tone-family"><div class="tone-icon">🏡</div><div class="tone-name">Family</div><div class="tone-ru">Семейная</div></div>
+        <div class="tone-opt" onclick="selectTone('investment')" id="tone-investment"><div class="tone-icon">📈</div><div class="tone-name">Investment</div><div class="tone-ru">Инвестиция</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Реквизиты договора</div>
+      <div class="sig-row">
+        <div><label>Номер договора</label><input type="text" id="sig-contract" placeholder="1602/1" /></div>
+        <div><label>Дата договора</label><input type="text" id="sig-date" placeholder="11.08.2025" /></div>
+      </div>
+    </div>
+
+    <button class="generate-btn" id="gen-btn" onclick="generate()">✦ Сгенерировать посты</button>
+    <div class="status-bar" id="status-bar">✦ Генерирую посты на русском языке...</div>
+    <div class="divider"></div>
+    <div style="display:flex;justify-content:flex-end">
+      <button class="btn-secondary" onclick="showView('view-history')">⟳ История (последние 10)</button>
+    </div>
+  </div>
+
+  <div id="view-output" class="view">
+    <div class="top-bar">
+      <button class="btn-secondary" onclick="showView('view-main')">← Назад</button>
+      <span class="top-bar-title" id="out-title"></span>
+      <button class="btn-secondary" onclick="saveToHistory()">🔖 Сохранить</button>
+    </div>
+    <div class="output-tabs">
+      <button class="tab active" onclick="switchTab('ig')" id="tab-ig">📷 Instagram</button>
+      <button class="tab" onclick="switchTab('tt')" id="tab-tt">🎵 TikTok</button>
+      <button class="tab" onclick="switchTab('script')" id="tab-script">🎬 Сценарий</button>
+    </div>
+    <div id="panel-ig">
+      <div class="post-block"><div class="post-label">📷 Подпись Instagram<button class="copy-btn" onclick="copyText('ig-caption',this)">📋 Копировать</button></div><div class="post-content" id="ig-caption"></div></div>
+      <div class="post-block"><div class="post-label"># Хэштеги Instagram<button class="copy-btn" onclick="copyText('ig-tags',this)">📋 Копировать</button></div><div class="post-content" id="ig-tags"></div></div>
+      <div class="post-block"><div class="post-label">⚡ Идея для Stories</div><div class="post-content" id="ig-story"></div></div>
+    </div>
+    <div id="panel-tt" style="display:none">
+      <div class="post-block"><div class="post-label">🎵 Подпись TikTok<button class="copy-btn" onclick="copyText('tt-caption',this)">📋 Копировать</button></div><div class="post-content" id="tt-caption"></div></div>
+      <div class="post-block"><div class="post-label"># Хэштеги TikTok<button class="copy-btn" onclick="copyText('tt-tags',this)">📋 Копировать</button></div><div class="post-content" id="tt-tags"></div></div>
+    </div>
+    <div id="panel-script" style="display:none">
+      <div class="post-block"><div class="post-label">🎬 Сценарий видео (TikTok / Reels)<button class="copy-btn" onclick="copyText('tt-script',this)">📋 Копировать</button></div><div class="post-content" id="tt-script"></div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:.5rem">
+      <button class="btn-secondary" onclick="generate()">⟳ Перегенерировать всё</button>
+    </div>
+  </div>
+
+  <div id="view-history" class="view">
+    <div class="top-bar">
+      <button class="btn-secondary" onclick="showView('view-main')">← Назад</button>
+      <span class="top-bar-title">История объектов</span>
+    </div>
+    <div id="history-list"></div>
+  </div>
+
+  <footer>Tina Agent Content Studio · Powered by Claude AI</footer>
+</div>
+
+<script>
+  const WORKER_URL = 'https://tina-proxy.ivan-pratsenka.workers.dev';
+
+  let currentTone = 'family';
+  let currentResult = null;
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem('tina_history') || '[]'); } catch(e) {}
+
+  const toneLabels = { luxury: 'Элитная', family: 'Семейная', investment: 'Инвестиция' };
+  const toneInstructions = {
+    luxury: 'Используй дорогой, престижный, статусный тон. Апеллируй к исключительности, качеству жизни, инвестиции в себя.',
+    family: 'Используй тёплый, семейный тон. Апеллируй к пространству для всей семьи, удобству, близости к школам и инфраструктуре.',
+    investment: 'Используй деловой, убедительный тон. Апеллируй к выгоде, ликвидности, цене за м², транспортной доступности.'
+  };
+
+  function showView(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    if (id === 'view-history') renderHistory();
+  }
+
+  function selectTone(t) {
+    currentTone = t;
+    ['luxury','family','investment'].forEach(x => document.getElementById('tone-'+x).classList.toggle('active', x===t));
+  }
+
+  function switchTab(tab) {
+    ['ig','tt','script'].forEach(t => {
+      document.getElementById('tab-'+t).classList.toggle('active', t===tab);
+      document.getElementById(t==='script'?'panel-script':'panel-'+t).style.display = t===tab?'block':'none';
+    });
+  }
+
+  function buildSignature() {
+    const c = document.getElementById('sig-contract').value.trim();
+    const d = document.getElementById('sig-date').value.trim();
+    const cs = c&&d?`Договор № ${c} от ${d}.\n`:c?`Договор № ${c}.\n`:'';
+    return `${cs}Агентство недвижимости ООО "Центр международной недвижимости Моя 7я" | УНП 193750826 | Лицензия № 02240/484 выдана МЮ РБ 18.05.2024 г.\n\nВалентина Стрех | +375296608559 | @tina_agent.by`;
+  }
+
+  async function callWorker(payload) {
+    const resp = await fetch(WORKER_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    return await resp.json();
+  }
+
+  async function parseUrl() {
+    const url = document.getElementById('url-input').value.trim();
+    if (!url) { alert('Введите ссылку на объект.'); return; }
+    const ind = document.getElementById('parsing-ind');
+    const errEl = document.getElementById('parse-error');
+    ind.classList.add('active');
+    errEl.classList.remove('active');
     try {
-      const body = await request.json();
-
-      // Special handler: if action = 'parse_url', fetch the page first
-      if (body.action === 'parse_url') {
-        const pageResp = await fetch(body.url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept-Language': 'ru-RU,ru;q=0.9',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          }
-        });
-
-        const html = await pageResp.text();
-
-        // Strip HTML tags and collapse whitespace for a clean text payload
-        const text = html
-          .replace(/<script[\s\S]*?<\/script>/gi, '')
-          .replace(/<style[\s\S]*?<\/style>/gi, '')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .slice(0, 12000); // keep within token limits
-
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${env.GEMINI_API_KEY}`;
-
-        const geminiBody = {
-          contents: [{
-            role: 'user',
-            parts: [{ text: `You are a real estate listing parser. Extract property details from this realt.by page text and return ONLY valid JSON with these fields: type (string, e.g. "3-комнатная квартира"), price (string, e.g. "205 000 $"), area (string, e.g. "122.1"), floor (string, e.g. "5 / 12"), address (string, full address in Russian), features (string, comma-separated key features in Russian), description (string, 1-2 sentence summary in Russian). No markdown, no explanation, only raw JSON.\n\nPage content:\n${text}` }]
-          }],
-          generationConfig: { maxOutputTokens: 800, temperature: 0.1 }
-        };
-
-        const geminiResp = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(geminiBody),
-        });
-
-        const geminiData = await geminiResp.json();
-        const resultText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-        return new Response(JSON.stringify({
-          content: [{ type: 'text', text: resultText }]
-        }), {
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        });
-      }
-
-      // Default handler: forward to Gemini for post generation
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${env.GEMINI_API_KEY}`;
-
-      const geminiBody = {
-        contents: body.messages.map(m => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: m.content }]
-        })),
-        systemInstruction: body.system ? { parts: [{ text: body.system }] } : undefined,
-        generationConfig: {
-          maxOutputTokens: body.max_tokens || 2000,
-          temperature: 0.8,
-        }
-      };
-
-      const response = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(geminiBody),
-      });
-
-      const data = await response.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-      return new Response(JSON.stringify({
-        content: [{ type: 'text', text }]
-      }), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
-
-    } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
+      const data = await callWorker({ action: 'parse_url', url });
+      const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+      const parsed = JSON.parse(text.replace(/```json|```/g,'').trim());
+      if(parsed.type) document.getElementById('f-type').value=parsed.type;
+      if(parsed.price) document.getElementById('f-price').value=parsed.price;
+      if(parsed.area) document.getElementById('f-area').value=parsed.area;
+      if(parsed.floor) document.getElementById('f-floor').value=parsed.floor;
+      if(parsed.address) document.getElementById('f-address').value=parsed.address;
+      if(parsed.features) document.getElementById('f-features').value=parsed.features;
+      if(parsed.description) document.getElementById('f-desc').value=parsed.description;
+    } catch(e) {
+      errEl.textContent='Не удалось загрузить данные. Проверьте ссылку или заполните поля вручную.';
+      errEl.classList.add('active');
     }
-  },
-};
+    ind.classList.remove('active');
+  }
+
+  async function generate() {
+    const type=document.getElementById('f-type').value, price=document.getElementById('f-price').value;
+    const area=document.getElementById('f-area').value, floor=document.getElementById('f-floor').value;
+    const address=document.getElementById('f-address').value, features=document.getElementById('f-features').value;
+    const desc=document.getElementById('f-desc').value, sig=buildSignature();
+    if(!address&&!area){alert('Заполните хотя бы адрес или площадь.');return;}
+    const btn=document.getElementById('gen-btn'), sb=document.getElementById('status-bar');
+    btn.disabled=true; sb.classList.add('active');
+    const prompt=`Ты — профессиональный SMM-специалист по недвижимости, пишешь посты на русском языке для белорусского рынка.\n\nОбъект:\n- Тип: ${type}\n- Цена: ${price}\n- Площадь: ${area} м²\n- Этаж: ${floor}\n- Адрес/район: ${address}\n- Особенности: ${features}\n- Описание: ${desc}\n\nТон: ${toneLabels[currentTone]}. ${toneInstructions[currentTone]}\n\nПодпись агента (добавляй в конец постов Instagram и TikTok):\n${sig}\n\nСоздай следующие разделы с точными разделителями:\n\n===INSTAGRAM_CAPTION===\n(150-250 слов, эмодзи, абзацы, призыв к действию, затем подпись агента)\n\n===INSTAGRAM_TAGS===\n(15-20 хэштегов на русском и английском)\n\n===INSTAGRAM_STORY===\n(3-4 конкретных слайда с описанием контента)\n\n===TIKTOK_CAPTION===\n(50-80 слов, цепляющий хук, энергично, эмодзи, затем подпись агента)\n\n===TIKTOK_TAGS===\n(7-10 хэштегов для TikTok)\n\n===VIDEO_SCRIPT===\n(Сценарий 30-45 сек: Хук 5 сек + Тур 20-25 сек + Призыв 5-10 сек. Конкретные реплики на русском.)`;
+    try {
+      const data=await callWorker({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]});
+      const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+      function extract(tag){
+        const all=['INSTAGRAM_CAPTION','INSTAGRAM_TAGS','INSTAGRAM_STORY','TIKTOK_CAPTION','TIKTOK_TAGS','VIDEO_SCRIPT'];
+        const sm=`===${tag}===`, start=text.indexOf(sm); if(start===-1)return'';
+        const cs=start+sm.length; let end=text.length;
+        for(const t of all){if(t===tag)continue;const p=text.indexOf(`===${t}===`,cs);if(p!==-1&&p<end)end=p;}
+        return text.slice(cs,end).trim();
+      }
+      currentResult={igCaption:extract('INSTAGRAM_CAPTION'),igTags:extract('INSTAGRAM_TAGS'),igStory:extract('INSTAGRAM_STORY'),ttCaption:extract('TIKTOK_CAPTION'),ttTags:extract('TIKTOK_TAGS'),ttScript:extract('VIDEO_SCRIPT')};
+      applyResult(currentResult);
+      document.getElementById('out-title').textContent=address||type;
+      showView('view-output'); switchTab('ig');
+    } catch(e){alert('Ошибка генерации. Попробуйте ещё раз.');}
+    btn.disabled=false; sb.classList.remove('active');
+  }
+
+  function applyResult(r){
+    document.getElementById('ig-caption').textContent=r.igCaption;
+    document.getElementById('ig-tags').textContent=r.igTags;
+    document.getElementById('ig-story').textContent=r.igStory;
+    document.getElementById('tt-caption').textContent=r.ttCaption;
+    document.getElementById('tt-tags').textContent=r.ttTags;
+    document.getElementById('tt-script').textContent=r.ttScript;
+  }
+
+  function copyText(id,btn){
+    navigator.clipboard.writeText(document.getElementById(id).textContent).then(()=>{
+      btn.classList.add('copied'); btn.textContent='✓ Скопировано';
+      setTimeout(()=>{btn.classList.remove('copied');btn.textContent='📋 Копировать';},2000);
+    });
+  }
+
+  function saveToHistory(){
+    if(!currentResult)return;
+    const title=document.getElementById('f-address').value||document.getElementById('f-type').value||'Объект';
+    history.unshift({title,tone:currentTone,date:new Date().toLocaleDateString('ru-RU'),result:currentResult});
+    if(history.length>10)history=history.slice(0,10);
+    try{localStorage.setItem('tina_history',JSON.stringify(history));}catch(e){}
+    const btn=document.querySelector('button[onclick="saveToHistory()"]');
+    btn.textContent='✓ Сохранено';
+    setTimeout(()=>{btn.textContent='🔖 Сохранить';},2000);
+  }
+
+  function renderHistory(){
+    const el=document.getElementById('history-list');
+    if(!history.length){el.innerHTML='<div class="empty-state">История пуста — сохраните первый объект.</div>';return;}
+    el.innerHTML=history.map((h,i)=>`<div class="history-item" onclick="loadHistory(${i})"><span style="font-size:18px">🏠</span><span class="hi-title">${h.title}</span><span class="hi-meta">${toneLabels[h.tone]||h.tone} · ${h.date}</span><span class="hi-del" onclick="deleteHistory(event,${i})">✕</span></div>`).join('');
+  }
+
+  function loadHistory(i){
+    currentResult=history[i].result;
+    document.getElementById('out-title').textContent=history[i].title;
+    applyResult(currentResult); showView('view-output'); switchTab('ig');
+  }
+
+  function deleteHistory(e,i){
+    e.stopPropagation(); history.splice(i,1);
+    try{localStorage.setItem('tina_history',JSON.stringify(history));}catch(e){}
+    renderHistory();
+  }
+</script>
+</body>
+</html>
